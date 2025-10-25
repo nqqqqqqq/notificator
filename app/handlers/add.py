@@ -2,6 +2,8 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
+from service import add_task_service
+from db.repo import get_or_create_user
 
 from aiogram.fsm.state import StatesGroup, State
 form_router = Router()
@@ -46,12 +48,19 @@ async def add_interval(message: Message, state: FSMContext):
         return
 
     minutes = int(text)
+    if minutes <= 0:
+        await message.answer("Интервал должен быть больше 0")
+        return
+
+
     data = await state.get_data()
     name = data["name"]
     description = data["description"]
 
+    user = get_or_create_user(telegram_user_id=message.from_user.id, username=message.from_user.username)
+    user_id = user[id]
+
+    result_text = add_task_service(user_id, name, description, minutes)
     await state.clear()
-    await message.answer(
-        f"Записал себе задачу {name}! Обязательно напомню тебе, чтобы ты не забыл. Удачи тебе :)",
-        reply_markup=ReplyKeyboardRemove(),
-    )
+
+    await message.answer(result_text, reply_markup=ReplyKeyboardRemove())
