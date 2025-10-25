@@ -176,8 +176,14 @@ def count_open(user_id) -> int:
     conn.close()
     return count
 
+def list_open_paged(user_id, limit, offset):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM tasks WHERE user_id = ? AND status = 1 ORDER BY remind_time LIMIT ? OFFSET ?", (user_id, limit, offset))
 
-
+    rows = cur.fetchall()
+    conn.close()
+    return rows
 
 
 
