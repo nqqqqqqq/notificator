@@ -1,0 +1,36 @@
+# ---- Python ----
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pycache
+
+# ---- Virtual environments ----
+venv/
+env/
+.venv/
+
+# ---- Databases ----
+*.db
+*.sqlite3
+
+# ---- Logs ----
+*.log
+logs/
+debug.log
+
+# ---- Configs and secrets ----
+config.yaml
+config.json
+.env
+*.env
+*.ini
+*.cfg
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+
+# ---- IDE ----
+.idea/
+.vscode/
