@@ -3,8 +3,8 @@ from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 
-from service import add_task_service
-from db.repo import get_or_create_user
+from app.service import add_task_service
+from app.db.repo import get_or_create_user
 
 from aiogram.fsm.state import StatesGroup, State
 form_router = Router()
@@ -16,7 +16,7 @@ class Form(StatesGroup):
 
 @form_router.message(Command("add"))
 async def command_add(message: Message, state : FSMContext) -> None:
-    await state.set_state("Form.name")
+    await state.set_state(Form.name)
     await message.answer(
         "Отлично! Напиши название задачи:",
         reply_markup=ReplyKeyboardRemove(),
@@ -25,7 +25,7 @@ async def command_add(message: Message, state : FSMContext) -> None:
 @form_router.message(Form.name)
 async def add_name(message: Message, state: FSMContext) -> None:
     await state.update_data(name=message.text.strip())
-    await state.set_state("Form.description")
+    await state.set_state(Form.description)
     await message.answer(
         "Добавь описание к задаче, это может быть ссылка, подробная информация или любые другие уточнения, чтобы ты не забыл. Или просто -",
         reply_markup=ReplyKeyboardRemove(),
@@ -35,7 +35,7 @@ async def add_name(message: Message, state: FSMContext) -> None:
 async def add_description(message: Message, state: FSMContext) -> None:
     desc = None if message.text.strip() == "-" else message.text.strip()
     await state.update_data(description=desc)
-    await state.set_state("Form.interval")
+    await state.set_state(Form.interval)
     await message.answer(
         "Отлично, когда тебе напомнить об этой задаче? Числом, пожалуйста",
         reply_markup=ReplyKeyboardRemove(),
@@ -59,7 +59,7 @@ async def add_interval(message: Message, state: FSMContext):
     description = data["description"]
 
     user = get_or_create_user(telegram_user_id=message.from_user.id, username=message.from_user.username)
-    user_id = user[id]
+    user_id = int(user["id"])
 
     result_text = add_task_service(user_id, name, description, minutes)
     await state.clear()

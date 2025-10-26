@@ -4,8 +4,10 @@ from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+import logging
+logging.basicConfig(level=logging.INFO)
 
-from handlers import start, add  # подключаем наш start.py
+from app.handlers import start, add  # подключаем наш start.py
 
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")

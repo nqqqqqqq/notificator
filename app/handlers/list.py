@@ -2,9 +2,9 @@
 
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.types import Message
 from app.db.repo import get_or_create_user
-from service import build_list_view
+from app.service import build_list_view
 
 router = Router()
 
