@@ -51,20 +51,20 @@ def update_timezone(user_id, tz) -> bool:
 def add_task(user_id, task_name, task_note, interval_min):
     if not task_name or not str(task_name).strip():
         raise ValueError("task_name is empty")
-    if interval_min <= 0:
-        raise ValueError("interval must be > 0")
+    # if interval_min <= 0:
+    #     raise ValueError("interval must be > 0")
 
     conn = get_connection()
     cur = conn.cursor()
 
-    remind_time = time.time() + int(interval_min) * 60
+    next_reminder_at = time.time() + int(interval_min) * 60
     status = 1
-    snooze_until = None
+    paused_until = None
 
     cur.execute("""
-        INSERT INTO tasks (user_id, task_name, task_note, interval_minutes, status, remind_time, snooze_until)
+        INSERT INTO tasks (user_id, task_name, task_note, interval, status, next_reminder_at, paused_until)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (user_id, task_name.strip(), task_note, int(interval_min), status, remind_time, snooze_until))
+    """, (user_id, task_name.strip(), task_note, interval_min, status, next_reminder_at, paused_until))
 
     conn.commit()
     task_id = cur.lastrowid
@@ -76,10 +76,10 @@ def list_open(user_id):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
-        SELECT id, task_name, task_note, status, remind_time, interval_minutes, snooze_until
+        SELECT id, task_name, task_note, status, next_reminder_at, interval, paused_until
         FROM tasks
         WHERE user_id = ? AND status = 1
-        ORDER BY remind_time ASC
+        ORDER BY next_reminder_at ASC
     """, (user_id,))
     rows = cur.fetchall()
     conn.close()
@@ -87,7 +87,7 @@ def list_open(user_id):
 
 
 def get_due(now_ts, limit, user_id=None):
-    """Задачи, срок которых наступил: remind_time <= now и (snooze_until IS NULL или <= now)."""
+    """Задачи, срок которых наступил: next_reminder_at <= now и (paused_until IS NULL или <= now)."""
     if limit <= 0:
         return []
 
@@ -95,23 +95,23 @@ def get_due(now_ts, limit, user_id=None):
     cur = conn.cursor()
     if user_id is not None:
         cur.execute("""
-            SELECT id, user_id, task_name, task_note, status, remind_time, interval_minutes, snooze_until
+            SELECT id, user_id, task_name, task_note, status, next_reminder_at, interval, paused_until
             FROM tasks
             WHERE user_id = ?
               AND status = 1
-              AND remind_time <= ?
-              AND (snooze_until IS NULL OR snooze_until <= ?)
-            ORDER BY remind_time ASC
+              AND next_reminder_at <= ?
+              AND (paused_until IS NULL OR paused_until <= ?)
+            ORDER BY next_reminder_at ASC
             LIMIT ?
         """, (user_id, now_ts, now_ts, int(limit)))
     else:
         cur.execute("""
-            SELECT id, user_id, task_name, task_note, status, remind_time, interval_minutes, snooze_until
+            SELECT id, user_id, task_name, task_note, status, next_reminder_at, interval, paused_until
             FROM tasks
             WHERE status = 1
-              AND remind_time <= ?
-              AND (snooze_until IS NULL OR snooze_until <= ?)
-            ORDER BY remind_time ASC
+              AND next_reminder_at <= ?
+              AND (paused_until IS NULL OR paused_until <= ?)
+            ORDER BY next_reminder_at ASC
             LIMIT ?
         """, (now_ts, now_ts, int(limit)))
     rows = cur.fetchall()
@@ -134,10 +134,10 @@ def snooze(task_id, user_id, minutes) -> bool:
         return False
     conn = get_connection()
     cur = conn.cursor()
-    snooze_until_time = time.time() + int(minutes) * 60
+    paused_until_time = time.time() + int(minutes) * 60
     cur.execute(
-        "UPDATE tasks SET snooze_until = ? WHERE id = ? AND user_id = ?",
-        (snooze_until_time, task_id, user_id)
+        "UPDATE tasks SET paused_until = ? WHERE id = ? AND user_id = ?",
+        (paused_until_time, task_id, user_id)
     )
     conn.commit()
     ok = (cur.rowcount == 1)
@@ -152,7 +152,7 @@ def reschedule(task_id, user_id, next_ts) -> bool:
     cur = conn.cursor()
     cur.execute("""
         UPDATE tasks
-        SET remind_time = ?, snooze_until = NULL
+        SET next_reminder_at = ?, paused_until = NULL
         WHERE id = ? AND user_id = ?
     """, (next_ts, task_id, user_id))
     conn.commit()
@@ -166,7 +166,7 @@ def set_interval(task_id, user_id, minutes) -> bool:
     cur = conn.cursor()
     cur.execute("""
         UPDATE tasks
-        SET interval_minutes = ?
+        SET interval = ?
         WHERE id = ? AND user_id = ?
     """, (int(minutes), task_id, user_id))
     conn.commit()
@@ -203,10 +203,10 @@ def list_open_paged(user_id, offset, limit):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
-        SELECT id, task_name, remind_time, interval_minutes, task_note, snooze_until
+        SELECT id, task_name, next_reminder_at, interval, task_note, paused_until
         FROM tasks
         WHERE user_id = ? AND status = 1
-        ORDER BY remind_time ASC
+        ORDER BY next_reminder_at ASC
         LIMIT ? OFFSET ?
     """, (user_id, int(limit), int(offset)))
     rows = cur.fetchall()

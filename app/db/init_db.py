@@ -32,9 +32,9 @@ def main():
         task_name        TEXT NOT NULL,
         task_note       TEXT,                                 
         status           INTEGER NOT NULL DEFAULT 1 CHECK (status IN (0,1)),  -- 1=активна, 0=выполнена/архив
-        remind_time      REAL    NOT NULL,                      -- time.time() (UTC, секунды)
-        interval_minutes INTEGER NOT NULL,                      -- минуты
-        snooze_until     REAL,                                  -- time.time() или NULL
+        next_reminder_at      REAL    NOT NULL,                      -- time.time() (UTC, секунды)
+        interval INTEGER NOT NULL,                      -- минуты
+        paused_until     REAL,                                  -- time.time() или NULL
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     """)
@@ -42,7 +42,7 @@ def main():
     # Индексы для скорости /list и get_due
     cur.execute("""
     CREATE INDEX IF NOT EXISTS idx_tasks_status_user_time
-    ON tasks(status, user_id, remind_time);
+    ON tasks(status, user_id, next_reminder_at);
     """)
 
     print(f"Database created/updated at: {DB_PATH}")

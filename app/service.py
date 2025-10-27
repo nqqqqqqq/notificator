@@ -42,16 +42,16 @@ def build_list_view(user_id: int, page: int = 0, limit: int = 5) -> tuple[str, I
     # 4) Элементы списка
     body_lines = []
     for i, row in enumerate(rows, start=1):
-        rt = format_ts(row["remind_time"])
+        rt = format_ts(row["next_reminder_at"])
         info = [
             f"{i}) {row['task_name']}",
             f"   След. напоминание: {rt}",
-            f"   Интервал: {row['interval_minutes']} мин"
+            f"   Интервал: {row['interval']} мин"
         ]
-        if row["task_notes"]:
-            info.append(f"   Заметка: {row['task_notes']}")
-        if row["snooze_until"]:
-            info.append(f"   Отложено до: {format_ts(row['snooze_until'])}")
+        if row["task_note"]:
+            info.append(f"   Заметка: {row['task_note']}")
+        if row["paused_until"]:
+            info.append(f"   Отложено до: {format_ts(row['paused_until'])}")
         body_lines.append("\n".join(info))
 
     text = "\n".join(header_lines + body_lines) or "📭 Задач нет."
@@ -102,8 +102,8 @@ def add_task_service(user_id: int, task_name: str, notes: str | None, interval: 
     # валидация входа
     if not task_name or not task_name.strip():
         raise ValueError("Название задачи пустое")
-    if interval <= 0:
-        raise ValueError("Интервал должен быть больше 0")
+    # if interval <= 0:
+    #   raise ValueError("Интервал должен быть больше 0")
 
     task_id = add_task(user_id, task_name.strip(), notes, interval)
     return f"✅ Задача добавлена (ID: {task_id}). Следующее напоминание через {interval} минут."

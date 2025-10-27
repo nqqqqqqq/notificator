@@ -8,7 +8,7 @@ creation_table = """CREATE TABLE tasks(
                     task_name TEXT NOT NULL,
                     task_notes TEXT NOT NULL,
                     status TEXT NOT NULL,
-                    remind_time REAL NOT NULL
+                    next_reminder_at REAL NOT NULL
                     )"""
 
 cursor.execute(creation_table)
