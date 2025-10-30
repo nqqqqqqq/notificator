@@ -134,10 +134,22 @@ def snooze(task_id, user_id, minutes) -> bool:
         return False
     conn = get_connection()
     cur = conn.cursor()
-    paused_until_time = time.time() + int(minutes) * 60
+
+    # 1) берём текущее paused_until
+    cur.execute("SELECT paused_until FROM tasks WHERE id = ? AND user_id = ?", (task_id, user_id))
+    row = cur.fetchone()
+    now = time.time()
+    base = now
+    if row and row["paused_until"]:
+        # 2) продлеваем от большего из (текущий snooze, сейчас)
+        base = max(now, float(row["paused_until"]))
+
+    new_until = base + int(minutes) * 60
+
+    # 3) пишем в нужную колонку
     cur.execute(
         "UPDATE tasks SET paused_until = ? WHERE id = ? AND user_id = ?",
-        (paused_until_time, task_id, user_id)
+        (new_until, task_id, user_id),
     )
     conn.commit()
     ok = (cur.rowcount == 1)
@@ -212,6 +224,22 @@ def list_open_paged(user_id, offset, limit):
     rows = cur.fetchall()
     conn.close()
     return rows
+
+def set_sleep_state(user_id: int, sleeping: bool):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET is_sleeping = ? WHERE id = ?", (1 if sleeping else 0, user_id))
+    conn.commit()
+    conn.close()
+
+def is_user_sleeping(user_id: int) -> bool:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT is_sleeping FROM users WHERE id = ?", (user_id,))
+    row = cur.fetchone()
+    conn.close()
+    return bool(row["is_sleeping"]) if row else False
+
 
 def get_user_by_id(user_id: int):
     conn = get_connection()

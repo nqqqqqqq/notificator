@@ -178,7 +178,7 @@ async def add_name(message: Message, state: FSMContext) -> None:
     await state.update_data(name=message.text.strip())
     await state.set_state(Form.description)
     await message.answer(
-        "Добавь описание к задаче (или просто -)",
+        "Добавь описание к задаче или уточнения",
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -189,7 +189,7 @@ async def add_description(message: Message, state: FSMContext) -> None:
     await state.update_data(description=desc)
     await state.set_state(Form.interval)
     await message.answer(
-        "Когда напомнить об этой задаче? Укажи число или время, например: '10 минут' или '2 часа'.",
+        "Когда напомнить об этой задаче? Укажи число или время, например: '10 минут' или '2 часа'",
         reply_markup=ReplyKeyboardRemove(),
     )
 

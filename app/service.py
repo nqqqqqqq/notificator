@@ -1,52 +1,76 @@
-# service.py
-
+# app/service.py
 from datetime import datetime
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from app.db.repo import add_task, count_open, list_open_paged
+from typing import Tuple, Optional, List
+
+from app.db import repo
 
 
-def format_ts(ts: float) -> str:
-    """Простой человекочитаемый формат времени (UTC)."""
-    if ts is None:
+def format_ts(ts: float | None) -> str:
+    if not ts:
         return "—"
+    # храним UTC (time.time), форматируем просто, без TZ
     return datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
 
 
-def build_list_view(user_id: int, page: int = 0, limit: int = 5) -> tuple[str, InlineKeyboardMarkup]:
-    # 1) Нормализация входа
+def clamp_page(page: int, pages: int) -> int:
+    if pages <= 0:
+        return 0
+    if page < 0:
+        return 0
+    if page >= pages:
+        return pages - 1
+    return page
+
+
+def _chunk_buttons(btns: List[InlineKeyboardButton], per_row: int = 8) -> List[List[InlineKeyboardButton]]:
+    rows: List[List[InlineKeyboardButton]] = []
+    for i in range(0, len(btns), per_row):
+        rows.append(btns[i:i + per_row])
+    return rows
+
+
+def build_list_view(
+    user_id: int,
+    page: int = 0,
+    limit: int = 5,
+    selected_task_id: Optional[int] = None,
+) -> Tuple[str, InlineKeyboardMarkup]:
+    # нормализация входа
     if limit <= 0:
         limit = 5
     page = max(0, page)
 
-    # 2) Данные: total, pages, rows
-    total = count_open(user_id)
+    total = repo.count_open(user_id)
     if total == 0:
         text = "📭 Задач нет. Добавь первую командой /add"
         return text, InlineKeyboardMarkup(inline_keyboard=[])
 
     pages = (total + limit - 1) // limit
-    if page >= pages:
-        page = pages - 1
-
+    page = clamp_page(page, pages)
     offset = page * limit
-    rows = list_open_paged(user_id, offset, limit)
 
-    # 3) Заголовок
+    rows = repo.list_open_paged(user_id, offset, limit)
+    if rows:
+        print("DEBUG row keys:", list(rows[0].keys()))
+
+    # Заголовок
     header_lines = [
         "🗒️ Мои задачи",
         f"Страница {page + 1} из {pages}",
         f"Всего: {total}",
-        ""
+        "",
     ]
 
-    # 4) Элементы списка
+    # Тело списка: пометим выбранную стрелкой
     body_lines = []
     for i, row in enumerate(rows, start=1):
-        rt = format_ts(row["next_reminder_at"])
+        is_selected = (selected_task_id is not None and row["id"] == selected_task_id)
+        prefix = "→ " if is_selected else ""
         info = [
-            f"{i}) {row['task_name']}",
-            f"   След. напоминание: {rt}",
-            f"   Интервал: {row['interval']} мин"
+            f"{prefix}{i}) {row['task_name']}",
+            f"   След. напоминание: {format_ts(row['next_reminder_at'])}",
+            f"   Интервал: {int(row['interval'])} мин",
         ]
         if row["task_note"]:
             info.append(f"   Заметка: {row['task_note']}")
@@ -56,47 +80,49 @@ def build_list_view(user_id: int, page: int = 0, limit: int = 5) -> tuple[str, I
 
     text = "\n".join(header_lines + body_lines) or "📭 Задач нет."
 
-    # 5) Клавиатура навигации
-    kb_rows = []
+    kb_rows: List[List[InlineKeyboardButton]] = []
 
-    # Для каждой задачи — ряд кнопок действий
-    for row in rows:
-        task_id = row["id"]
+    if selected_task_id is None:
+        # Рисуем кнопку-номера для видимых задач (1..N)
+        number_buttons = []
+        for i, row in enumerate(rows, start=1):
+            number_buttons.append(
+                InlineKeyboardButton(
+                    text=str(i),
+                    callback_data=f"select_task|{row['id']}|{page}|{limit}",
+                )
+            )
+        kb_rows.extend(_chunk_buttons(number_buttons, per_row=8))
+    else:
+        # Рисуем действия для выбранной задачи
+        tid = selected_task_id
         kb_rows.append([
-            InlineKeyboardButton(
-                text="✅ Сделано",
-                callback_data=f"task_done|{task_id}|{page}|{limit}"
-            ),
-            InlineKeyboardButton(
-                text="⏱ Отложить",
-                callback_data=f"task_snooze|{task_id}|{page}|{limit}"
-            ),
-            InlineKeyboardButton(
-                text="🗑 Удалить",
-                callback_data=f"task_delete|{task_id}|{page}|{limit}"
-            ),
+            InlineKeyboardButton(text="✅ Выполнено", callback_data=f"task_done|{tid}|{page}|{limit}")
+        ])
+        kb_rows.append([
+            InlineKeyboardButton(text="⏱ +15м", callback_data=f"task_snooze|{tid}|15|{page}|{limit}"),
+            InlineKeyboardButton(text="⏱ +1ч",  callback_data=f"task_snooze|{tid}|60|{page}|{limit}"),
+            InlineKeyboardButton(text="⏱ +1д",  callback_data=f"task_snooze|{tid}|1440|{page}|{limit}"),
+        ])
+        kb_rows.append([
+            InlineKeyboardButton(text="🗑 Удалить", callback_data=f"task_delete|{tid}|{page}|{limit}")
+        ])
+        kb_rows.append([
+            InlineKeyboardButton(text="⬅️ Назад", callback_data=f"back_to_list|{page}|{limit}")
         ])
 
-    # Ряд навигации
-    nav_row = []
+    # Пагинация (всегда внизу)
+    nav_row: List[InlineKeyboardButton] = []
     if page > 0:
-        nav_row.append(
-            InlineKeyboardButton(text="⬅️ Назад", callback_data=f"list_page|{page - 1}|{limit}")
-        )
-    else:
-        # Ничего не добавляем — «неактивная» кнопка в инлайн-кб не поддерживается
-        pass
-
+        nav_row.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"list_page|{page - 1}|{limit}"))
     if page < pages - 1:
-        nav_row.append(
-            InlineKeyboardButton(text="Вперёд ➡️", callback_data=f"list_page|{page + 1}|{limit}")
-        )
-
+        nav_row.append(InlineKeyboardButton(text="Вперёд ➡️", callback_data=f"list_page|{page + 1}|{limit}"))
     if nav_row:
         kb_rows.append(nav_row)
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=kb_rows)
     return text, keyboard
+
 
 def add_task_service(user_id: int, task_name: str, notes: str | None, interval: int) -> str:
     # валидация входа
@@ -105,5 +131,8 @@ def add_task_service(user_id: int, task_name: str, notes: str | None, interval: 
     # if interval <= 0:
     #   raise ValueError("Интервал должен быть больше 0")
 
-    task_id = add_task(user_id, task_name.strip(), notes, interval)
+    task_id = repo.add_task(user_id, task_name.strip(), notes, interval)
     return f"✅ Задача добавлена (ID: {task_id}). Следующее напоминание через {interval} минут."
+
+
+
