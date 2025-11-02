@@ -29,7 +29,14 @@ async def deliver_reminder(bot: Bot, task_row) -> bool:
     # 3) Отправка
     await bot.send_message(chat_id, text)
 
-    # 4) Перенос на следующий раз
-    next_ts = time.time() + interval * 60
-    repo.reschedule(task_id, user_id, next_ts)
+    is_one_shot = bool(task_row.get("is_one_shot", 0))
+    interval = int(task_row["interval"])
+    task_id = task_row["id"]
+
+    if is_one_shot or interval <= 0:
+        repo.mark_done(task_id, user_id)
+    else:
+        next_ts = time.time() + interval * 60
+        repo.reschedule(task_id, user_id, next_ts)
+
     return True

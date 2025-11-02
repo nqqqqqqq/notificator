@@ -20,7 +20,7 @@ def main():
         username          TEXT,                                -- может быть NULL
         timezone          TEXT DEFAULT 'Europe/Warsaw',
         created_at        TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at        TEXT DEFAULT CURRENT_TIMESTAMP
+        updated_at        TEXT DEFAULT CURRENT_TIMESTAMP,
         is_sleeping       INTEGER NOT NULL DEFAULT 0
     );
     """)

@@ -8,7 +8,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 
-from app.handlers import add, list as list_handlers, sleep
+from app.handlers import add, list as list_handlers, sleep, at
 from app.services.scheduler import run as scheduler_run
 
 async def main():
@@ -33,6 +33,7 @@ async def main():
     dp.include_router(add.form_router)
     dp.include_router(list_handlers.router)
     dp.include_router(sleep.router)
+    dp.include_router(at.router)
 
     # --- запускаем фоновый планировщик напоминаний ---
     asyncio.create_task(scheduler_run(bot, interval_seconds=15, batch_limit=50, quiet=False))

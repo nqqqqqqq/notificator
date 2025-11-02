@@ -5,7 +5,7 @@ from typing import Optional
 from aiogram import Bot
 from app.db import repo
 from .tasks import deliver_reminder
-from app.db.repo import is_user_sleeping
+from app.db.repo import get_user_by_id, reschedule, is_user_sleeping
 
 _TICK_LOCK = asyncio.Lock()
 
@@ -25,9 +25,12 @@ async def _process_tick(bot: Bot, batch_limit: int = 50) -> int:
 
 async def deliver_reminder(bot: Bot, task_row) -> bool:
     user_id = task_row["user_id"]
-    # если пользователь спит — пропускаем
     if is_user_sleeping(user_id):
-        return False
+        return False  # тишина во сне
+
+    # ... отправка сообщения ...
+    # ... reschedule(task_id, user_id, time.time() + interval*60) ...
+    return True
 
 async def run(bot: Bot, interval_seconds: int = 15, batch_limit: int = 50, quiet: bool = True):
     """
