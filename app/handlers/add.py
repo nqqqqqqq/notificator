@@ -1,13 +1,16 @@
 import re
+import time
 import unicodedata
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
+from app.db import repo
 
-from app.service import add_task_service
 from app.db.repo import get_or_create_user
+from app.service import add_task_service
 from aiogram.fsm.state import StatesGroup, State
+from app.utils.datetime_ru import parse_datetime_ru
 
 form_router = Router()
 
@@ -197,33 +200,46 @@ async def add_description(message: Message, state: FSMContext) -> None:
 @form_router.message(Form.interval)
 async def add_interval(message: Message, state: FSMContext):
     text = message.text.strip()
+
+    # 1) пытаемся разобрать "через N минут/часов ..."
     minutes = parse_to_minutes(text)
+    if minutes is not None and minutes > 0:
+        data = await state.get_data()
+        name = data["name"]
+        description = data["description"]
 
-    if minutes is None:
-        await message.answer(
-            "Нужно число минут, попробуй ещё раз!",
-            reply_markup=ReplyKeyboardRemove(),
-        )
+        user = get_or_create_user(telegram_user_id=message.from_user.id, username=message.from_user.username)
+        user_id = int(user["id"])
+
+        result_text = add_task_service(user_id, name, description, minutes)
+        await state.clear()
+        await message.answer(result_text, reply_markup=ReplyKeyboardRemove())
         return
 
-    if minutes <= 0:
-        await message.answer(
-            "Время не может быть меньше нуля. Попробуй ещё раз!",
-            reply_markup=ReplyKeyboardRemove(),
-        )
+    # 2) если минуты не распарсились — пробуем абсолютную дату/время
+    # учитываем пользовательский часовой пояс, если хранишь его в users.timezone
+    user = get_or_create_user(telegram_user_id=message.from_user.id, username=message.from_user.username)
+    tz_name = user["timezone"] if "timezone" in user.keys() and user["timezone"] else "Europe/Warsaw"
+    when_ts = parse_datetime_ru(text, tz_name=tz_name)
+
+    if when_ts is not None and when_ts > time.time():
+        data = await state.get_data()
+        name = data["name"]
+        description = data["description"]
+        user_id = int(user["id"])
+
+        # создаём разовую задачу на конкретное время
+        tid = repo.add_task_at(user_id, name, description, when_ts)
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        when_str = datetime.fromtimestamp(when_ts, ZoneInfo(tz_name)).strftime("%Y-%m-%d %H:%M")
+        await state.clear()
+        await message.answer(f"✅ Разовая задача добавлена (ID: {tid})\n⏰ Время: {when_str}",
+                             reply_markup=ReplyKeyboardRemove())
         return
 
-    data = await state.get_data()
-    name = data["name"]
-    description = data["description"]
-
-    user = get_or_create_user(
-        telegram_user_id=message.from_user.id,
-        username=message.from_user.username,
+    # 3) ни минуты, ни дата/время не распознаны
+    await message.answer(
+        "Нужно указать время: либо «через 20 минут/2 часа», либо «13 сентября 12:00». Попробуй ещё раз.",
+        reply_markup=ReplyKeyboardRemove(),
     )
-    user_id = int(user["id"])
-
-    result_text = add_task_service(user_id, name, description, minutes)
-    await state.clear()
-
-    await message.answer(result_text, reply_markup=ReplyKeyboardRemove())
