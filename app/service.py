@@ -1,15 +1,15 @@
 from datetime import datetime
 from typing import Tuple, Optional, List
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from zoneinfo import ZoneInfo
 
 from app.db import repo
 
 
-def format_ts(ts: float | None) -> str:
-    # если строго None — показываем тире; ноль почти невозможен, но не скрываем None за falsy-логикой
+def format_ts(ts: float | None, tz: str = "Europe/Warsaw") -> str:
     if ts is None:
         return "—"
-    return datetime.utcfromtimestamp(float(ts)).strftime("%Y-%m-%d %H:%M")
+    return datetime.fromtimestamp(float(ts), ZoneInfo(tz)).strftime("%Y-%m-%d %H:%M")
 
 
 def clamp_page(page: int, pages: int) -> int:
@@ -46,6 +46,7 @@ def build_list_view(
     selected_task_id: Optional[int] = None,
     seed_a: Optional[int] = None,
     seed_b: Optional[int] = None,
+    tz: str = "Europe/Warsaw",  # ← новый параметр
 ) -> Tuple[str, InlineKeyboardMarkup]:
     # нормализация входа
     if limit <= 0:
@@ -98,12 +99,12 @@ def build_list_view(
 
         lines = [
             f"{'👉 ' if is_selected else ''}{i}. <b>{row['task_name']}</b>",
-            f"   ⏰ {format_ts(remind_ts)} | ⏱ {interval_str}",
+            f"   ⏰ {format_ts(remind_ts, tz)} | ⏱ {interval_str}",
         ]
         if note:
             lines.append(f"   💬 {note}")
         if snooze_ts is not None:
-            lines.append(f"   😴 Отложено до: {format_ts(snooze_ts)}")
+            lines.append(f"   😴 Отложено до: {format_ts(snooze_ts, tz)}")
 
         body_lines.append("\n".join(lines))
 

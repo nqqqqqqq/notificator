@@ -3,6 +3,8 @@ from datetime import datetime
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
+from zoneinfo import ZoneInfo
+
 
 from app.db.repo import (
     get_or_create_user,
@@ -14,8 +16,8 @@ from app.db.repo import (
 
 router = Router()
 
-def _fmt_ts(ts: float) -> str:
-    return datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
+def _fmt_ts(ts: float, tz: str = "Europe/Warsaw") -> str:
+    return datetime.fromtimestamp(float(ts), ZoneInfo(tz)).strftime("%Y-%m-%d %H:%M")
 
 @router.message(Command("sleep"))
 async def cmd_sleep(message: Message):
