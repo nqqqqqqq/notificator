@@ -9,19 +9,20 @@ from app.db.repo import get_user_by_id, reschedule, is_user_sleeping
 
 _TICK_LOCK = asyncio.Lock()
 
-async def _process_tick(bot: Bot, batch_limit: int = 50) -> int:
-    """
-    Обрабатывает одну «тик»-итерацию: достаёт due-задачи и отправляет напоминания.
-    Возвращает количество обработанных задач.
-    """
+def _process_tick(bot: Bot):
     now = time.time()
-    due_rows = repo.get_due(now, batch_limit, user_id=None)
-    sent = 0
+    limit = 100  # или твой лимит
+    due_rows = repo.get_due(now, limit=limit)
+
+    print("SCHEDULER: tick at", now, "found", len(due_rows), "due tasks")  # ← вставь сюда
+
     for row in due_rows:
-        ok = await deliver_reminder(bot, row)
-        if ok:
-            sent += 1
-    return sent
+        print("SCHEDULER: delivering task id=", row["id"], row["task_name"], "for user", row["user_id"])  # ← и сюда
+
+        try:
+            deliver_reminder(bot, row)
+        except Exception as e:
+            print("SCHEDULER: error delivering task id", row["id"], ":", e)
 
 async def deliver_reminder(bot: Bot, task_row) -> bool:
     user_id = task_row["user_id"]
