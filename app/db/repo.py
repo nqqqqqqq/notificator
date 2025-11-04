@@ -287,7 +287,12 @@ def get_sleep_started_at(user_id: int) -> float | None:
     cur.execute("SELECT sleep_started_at FROM users WHERE id = ?", (user_id,))
     row = cur.fetchone()
     conn.close()
-    return float(row["sleep_started_at"]) if row and row["sleep_started_at"] is not None else None
+    if not row or row["sleep_started_at"] is None:
+        return None
+    try:
+        return float(row["sleep_started_at"])
+    except Exception:
+        return None
 
 def get_missed_during_sleep(user_id: int, since_ts: float | None, now_ts: float) -> list[sqlite3.Row]:
     conn = get_connection()
